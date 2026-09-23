@@ -1,4 +1,4 @@
-name: Build ShieldFilterV2 Locked Gradle8.7
+name: Build ShieldFilterV2 SAFE Gradle 8.7
 on:
   push:
     branches: [ main ]
@@ -11,36 +11,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup JDK17
+      - name: Setup JDK 17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
+      # 👉 关键：直接装 Gradle 8.7！绝不使用系统自带的 9.7.1
+      - name: Install Gradle 8.7 explicitly
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.7
+
       - name: Prepare assets & download models
         run: |
           set +e
           mkdir -p app/src/main/assets
           cd app/src/main/assets
-          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
           wget --connect-timeout=15 --tries=2 --no-check-certificate -O gender_classifier.tflite "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite"
           ls -la
           cd -
 
-      - name: Generate gradle wrapper (force 8.7, avoid gradle9)
+      # 现在用我们刚装好的、确定是8.7的gradle生成wrapper，不会跳到9！
+      - name: Generate wrapper (safe, Gradle 8.7)
         run: |
           cd app
-          # 使用系统gradle生成wrapper，严格锁定8.7
           gradle wrapper --gradle-version 8.7
           chmod +x gradlew
           ./gradlew --version
 
-      - name: Assemble Debug
+      - name: Build APK
         run: cd app && ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShieldFilterV2_Fixed
+          name: ShieldFilterV2_SAFE
           path: app/build/outputs/apk/debug/app-debug.apk
