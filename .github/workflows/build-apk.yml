@@ -1,4 +1,4 @@
-name: Build ShieldFilterV2 BARE‑METAL NO‑ACTION
+name: Build ShieldFilterV2 LAST TRY
 on:
   push:
     branches: [ main ]
@@ -16,41 +16,39 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: none
+          # 删掉了非法的 cache: none！这里直接不写cache就等于不启用
 
-      # 完全手动下载官方 Gradle 8.7！不经过任何 gradle‑action、不碰缓存服务
-      - name: Manually download Gradle 8.7
+      # 完全手动从官网下载 Gradle 8.7，不经过任何坏掉的 gradle‑action
+      - name: Download Gradle 8.7 manually
         run: |
           cd $HOME
-          wget https://services.gradle.org/distributions/gradle-8.7-bin.zip -O gradle-8.7-bin.zip
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
           unzip -q gradle-8.7-bin.zip
-          echo "GRADLE_HOME=$HOME/gradle-8.7" >> $GITHUB_ENV
-          echo "$HOME/gradle-8.7/bin" >> $GITHUB_PATH
+          echo "PATH=$HOME/gradle-8.7/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Verify Gradle version (must be 8.7)
+      - name: Check Gradle version
         run: gradle --version
 
-      - name: Prepare assets & download models
+      - name: Prepare assets & models
         run: |
           set +e
           mkdir -p app/src/main/assets
           cd app/src/main/assets
-          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
-          wget --connect-timeout=15 --tries=2 --no-check-certificate -O gender_classifier.tflite "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite"
-          ls -la
+          wget -q --connect-timeout=15 --tries=2 https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+          wget -q --connect-timeout=15 --tries=2 https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite
 
-      - name: Generate wrapper with pure manual‑installed Gradle 8.7
+      - name: Generate wrapper
         run: |
           cd app
           gradle wrapper --gradle-version 8.7
           chmod +x gradlew
           ./gradlew --version
 
-      - name: Build APK (no cache)
+      - name: Build APK
         run: cd app && ./gradlew assembleDebug --stacktrace --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShieldFilterV2_FINAL
+          name: ShieldFilterV2_APK
           path: app/build/outputs/apk/debug/app-debug.apk
