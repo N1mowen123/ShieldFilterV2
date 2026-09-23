@@ -1,8 +1,8 @@
-name: Build ShieldFilterV2 SAFE Gradle 8.7
+name: Build ShieldFilterV2 NO‑CACHE
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch
 
 jobs:
   build:
@@ -16,26 +16,27 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+          # 关闭gradle缓存
+          cache: none
 
-      # 👉 关键：直接装 Gradle 8.7！绝不使用系统自带的 9.7.1
-      - name: Install Gradle 8.7 explicitly
+      - name: Install Gradle 8.7，关闭全部缓存
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.7
+          cache-read-only: false
+          cache-disabled: true
 
       - name: Prepare assets & download models
         run: |
           set +e
           mkdir -p app/src/main/assets
           cd app/src/main/assets
-          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
           wget --connect-timeout=15 --tries=2 --no-check-certificate -O gender_classifier.tflite "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite"
           ls -la
           cd -
 
-      # 现在用我们刚装好的、确定是8.7的gradle生成wrapper，不会跳到9！
-      - name: Generate wrapper (safe, Gradle 8.7)
+      - name: Generate wrapper Gradle8.7
         run: |
           cd app
           gradle wrapper --gradle-version 8.7
@@ -43,10 +44,10 @@ jobs:
           ./gradlew --version
 
       - name: Build APK
-        run: cd app && ./gradlew assembleDebug --stacktrace
+        run: cd app && ./gradlew assembleDebug --stacktrace --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShieldFilterV2_SAFE
+          name: ShieldFilterV2_NoCache
           path: app/build/outputs/apk/debug/app-debug.apk
