@@ -1,4 +1,4 @@
-name: Build ShieldFilterV2 DEBUG FULL LOG
+name: Build ShieldFilterV2 Locked Gradle8.7
 on:
   push:
     branches: [ main ]
@@ -11,14 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup JDK17 (v5 规避弃用)
+      - name: Setup JDK17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
-      - name: 准备assets、下载模型（失败只警告不终止）
+      - name: Prepare assets & download models
         run: |
           set +e
           mkdir -p app/src/main/assets
@@ -28,20 +28,17 @@ jobs:
           ls -la
           cd -
 
-      - name: 生成/修复 gradlew
+      - name: Make sure gradlew exists & executable（⚠️不再自动运行 gradle wrapper！！）
         run: |
           cd app
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.7
-          fi
           chmod +x gradlew
           ./gradlew --version
 
-      - name: 编译（--stacktrace --debug 强制打出完整错误！！）
-        run: cd app && ./gradlew assembleDebug --stacktrace --debug
+      - name: Assemble Debug
+        run: cd app && ./gradlew assembleDebug --stacktrace
 
-      - name: 上传APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShieldFilterV2_APK
+          name: ShieldFilterV2_Fixed
           path: app/build/outputs/apk/debug/app-debug.apk
