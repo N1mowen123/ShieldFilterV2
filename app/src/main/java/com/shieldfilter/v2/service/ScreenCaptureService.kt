@@ -10,7 +10,6 @@ import android.os.IBinder
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.shieldfilter.v2.R
 
 class ScreenCaptureService : ForegroundService() {
     private var mediaProjection: MediaProjection? = null
@@ -23,8 +22,9 @@ class ScreenCaptureService : ForegroundService() {
                 .setName("姿态捕获服务").build()
             NotificationManagerCompat.from(this).createNotificationChannel(ch)
         }
+        // 使用系统自带图标！不再依赖缺失的 ic_launcher
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(android.R.drawable.ic_menu_add)
             .setContentTitle("ShieldFilter‑V2 运行中")
             .setOngoing(true).build()
         startForeground(1001, notif)
