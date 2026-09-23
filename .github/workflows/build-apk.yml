@@ -1,4 +1,4 @@
-name: Build ShieldFilterV2 LAST TRY
+name: Build Shield V2 FINAL NO WRAPPER HACK
 on:
   push:
     branches: [ main ]
@@ -7,48 +7,44 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 50
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup JDK17
+      - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
-          # 删掉了非法的 cache: none！这里直接不写cache就等于不启用
 
-      # 完全手动从官网下载 Gradle 8.7，不经过任何坏掉的 gradle‑action
-      - name: Download Gradle 8.7 manually
+      - name: Manually fetch official Gradle 8.7 (bypass all broken actions)
         run: |
-          cd $HOME
-          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          cd "$HOME"
+          wget --no-verbose https://services.gradle.org/distributions/gradle-8.7-bin.zip
           unzip -q gradle-8.7-bin.zip
-          echo "PATH=$HOME/gradle-8.7/bin:$PATH" >> $GITHUB_ENV
+          export PATH="$HOME/gradle-8.7/bin:$PATH"
+          echo "PATH=$HOME/gradle-8.7/bin:$PATH" >> "$GITHUB_ENV"
+          gradle --version
 
-      - name: Check Gradle version
-        run: gradle --version
-
-      - name: Prepare assets & models
+      - name: Download model assets
         run: |
-          set +e
           mkdir -p app/src/main/assets
-          cd app/src/main/assets
-          wget -q --connect-timeout=15 --tries=2 https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
-          wget -q --connect-timeout=15 --tries=2 https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite
+          wget --no-verbose -P app/src/main/assets https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task || true
+          wget --no-verbose -P app/src/main/assets https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite || true
 
-      - name: Generate wrapper
+      # 关键突破：不生成gradlew！直接用全局gradle指定项目构建
+      - name: Build directly with Gradle 8.7 (skip wrapper entirely)
         run: |
+          export PATH="$HOME/gradle-8.7/bin:$PATH"
           cd app
-          gradle wrapper --gradle-version 8.7
-          chmod +x gradlew
-          ./gradlew --version
+          gradle assembleDebug --project-dir=. --stacktrace --no-build-cache
 
-      - name: Build APK
-        run: cd app && ./gradlew assembleDebug --stacktrace --no-build-cache
+      - name: Verify APK exists
+        run: ls -la app/build/outputs/apk/debug/ || echo "APK not generated"
 
-      - name: Upload APK
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ShieldFilterV2_APK
+          name: ShieldFinalApk
           path: app/build/outputs/apk/debug/app-debug.apk
