@@ -1,4 +1,4 @@
-name: DIAGNOSE_AND_BUILD_STAGED
+name: DumpConfigError
 on:
   push:
     branches: [ main ]
@@ -27,27 +27,33 @@ jobs:
       - name: Check Gradle version
         run: gradle --version
 
-      # 【关键诊断阶段】先跑 projects —— 这一步失败=项目配置就崩，直接输出原因，不往下走
-      - name: DIAGNOSE gradle projects (fail fast on config error)
+      - name: DIAGNOSE gradle projects, capture full log
+        id: diag
+        continue-on-error: true
         run: |
           cd app
-          gradle projects --no-daemon --stacktrace
+          gradle projects --no-daemon --stacktrace 2>&1 > config-log.txt
+          cat config-log.txt
 
-      # 配置通过才走到下载资源（现在先不强制下模型，避免阻塞；后面再加）
+      - name: Print diagnostic result
+        run: |
+          cat app/config-log.txt
+
       - name: Prepare empty assets dir
         run: mkdir -p app/src/main/assets
 
-      # 正式构建
-      - name: Run assembleDebug
+      - name: Build only if diagnose passed
+        if: steps.diag.outcome == 'success'
         run: |
           cd app
           gradle assembleDebug --no-daemon --no-build-cache --stacktrace
 
-      - name: List output dir
-        run: ls -R app/build || echo "build folder was NOT created"
+      - name: List build folder
+        run: ls -R app/build || echo "build folder not created"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: steps.diag.outcome == 'success'
         with:
           name: ShieldV2_BaseApk
           path: app/build/outputs/apk/debug/app-debug.apk
