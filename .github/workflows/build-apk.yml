@@ -1,30 +1,34 @@
-name: Build ShieldFilterV2 NO‑CACHE
+name: Build ShieldFilterV2 BARE‑METAL NO‑ACTION
 on:
   push:
     branches: [ main ]
-  workflow_dispatch
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Setup JDK17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
-          # 关闭gradle缓存
           cache: none
 
-      - name: Install Gradle 8.7，关闭全部缓存
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 8.7
-          cache-read-only: false
-          cache-disabled: true
+      # 完全手动下载官方 Gradle 8.7！不经过任何 gradle‑action、不碰缓存服务
+      - name: Manually download Gradle 8.7
+        run: |
+          cd $HOME
+          wget https://services.gradle.org/distributions/gradle-8.7-bin.zip -O gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip
+          echo "GRADLE_HOME=$HOME/gradle-8.7" >> $GITHUB_ENV
+          echo "$HOME/gradle-8.7/bin" >> $GITHUB_PATH
+
+      - name: Verify Gradle version (must be 8.7)
+        run: gradle --version
 
       - name: Prepare assets & download models
         run: |
@@ -34,20 +38,19 @@ jobs:
           wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
           wget --connect-timeout=15 --tries=2 --no-check-certificate -O gender_classifier.tflite "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite"
           ls -la
-          cd -
 
-      - name: Generate wrapper Gradle8.7
+      - name: Generate wrapper with pure manual‑installed Gradle 8.7
         run: |
           cd app
           gradle wrapper --gradle-version 8.7
           chmod +x gradlew
           ./gradlew --version
 
-      - name: Build APK
+      - name: Build APK (no cache)
         run: cd app && ./gradlew assembleDebug --stacktrace --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ShieldFilterV2_NoCache
+          name: ShieldFilterV2_FINAL
           path: app/build/outputs/apk/debug/app-debug.apk
