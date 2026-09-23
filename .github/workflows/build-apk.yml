@@ -1,4 +1,4 @@
-name: Build Shield V2 FINAL NO WRAPPER HACK
+name: Build_With_Full_Log_DUMP
 on:
   push:
     branches: [ main ]
@@ -9,42 +9,48 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup JDK 17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Manually fetch official Gradle 8.7 (bypass all broken actions)
+      - name: Download Gradle 8.7 official
         run: |
-          cd "$HOME"
+          cd $HOME
           wget --no-verbose https://services.gradle.org/distributions/gradle-8.7-bin.zip
           unzip -q gradle-8.7-bin.zip
-          export PATH="$HOME/gradle-8.7/bin:$PATH"
-          echo "PATH=$HOME/gradle-8.7/bin:$PATH" >> "$GITHUB_ENV"
-          gradle --version
+          echo "PATH=$HOME/gradle-8.7/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Download model assets
+      - name: Verify Gradle
+        run: gradle --version
+
+      - name: Pull assets
         run: |
           mkdir -p app/src/main/assets
           wget --no-verbose -P app/src/main/assets https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task || true
           wget --no-verbose -P app/src/main/assets https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite || true
 
-      # 关键突破：不生成gradlew！直接用全局gradle指定项目构建
-      - name: Build directly with Gradle 8.7 (skip wrapper entirely)
+      # 重点：输出全部日志到 log.txt；就算构建失败也必须 cat 出来！
+      - name: Run build & dump log
+        id: buildstep
+        continue-on-error: true
         run: |
-          export PATH="$HOME/gradle-8.7/bin:$PATH"
           cd app
-          gradle assembleDebug --project-dir=. --stacktrace --no-build-cache
+          set -o pipefail
+          gradle assembleDebug --stacktrace --no-build-cache 2>&1 | tee ../build-log.txt
 
-      - name: Verify APK exists
-        run: ls -la app/build/outputs/apk/debug/ || echo "APK not generated"
+      - name: FORCE PRINT FULL LOG (关键！这里会吐出被隐藏的真实错误)
+        run: cat build-log.txt
 
-      - name: Upload artifact
+      - name: Check if APK exists
+        run: ls -la app/build/outputs/apk/debug/ || echo "APK 目录不存在"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: success() || steps.buildstep.outcome == 'success'
         with:
-          name: ShieldFinalApk
+          name: ShieldApk
           path: app/build/outputs/apk/debug/app-debug.apk
