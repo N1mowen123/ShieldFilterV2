@@ -1,4 +1,4 @@
-name: Build_With_Full_Log_DUMP
+name: DIAGNOSE_AND_BUILD_STAGED
 on:
   push:
     branches: [ main ]
@@ -11,46 +11,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Setup JDK17
         uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Download Gradle 8.7 official
+      - name: Install Gradle 8.7 manually
         run: |
-          cd $HOME
+          cd "$HOME"
           wget --no-verbose https://services.gradle.org/distributions/gradle-8.7-bin.zip
           unzip -q gradle-8.7-bin.zip
           echo "PATH=$HOME/gradle-8.7/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Verify Gradle
+      - name: Check Gradle version
         run: gradle --version
 
-      - name: Pull assets
-        run: |
-          mkdir -p app/src/main/assets
-          wget --no-verbose -P app/src/main/assets https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task || true
-          wget --no-verbose -P app/src/main/assets https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite || true
-
-      # 重点：输出全部日志到 log.txt；就算构建失败也必须 cat 出来！
-      - name: Run build & dump log
-        id: buildstep
-        continue-on-error: true
+      # 【关键诊断阶段】先跑 projects —— 这一步失败=项目配置就崩，直接输出原因，不往下走
+      - name: DIAGNOSE gradle projects (fail fast on config error)
         run: |
           cd app
-          set -o pipefail
-          gradle assembleDebug --stacktrace --no-build-cache 2>&1 | tee ../build-log.txt
+          gradle projects --no-daemon --stacktrace
 
-      - name: FORCE PRINT FULL LOG (关键！这里会吐出被隐藏的真实错误)
-        run: cat build-log.txt
+      # 配置通过才走到下载资源（现在先不强制下模型，避免阻塞；后面再加）
+      - name: Prepare empty assets dir
+        run: mkdir -p app/src/main/assets
 
-      - name: Check if APK exists
-        run: ls -la app/build/outputs/apk/debug/ || echo "APK 目录不存在"
+      # 正式构建
+      - name: Run assembleDebug
+        run: |
+          cd app
+          gradle assembleDebug --no-daemon --no-build-cache --stacktrace
+
+      - name: List output dir
+        run: ls -R app/build || echo "build folder was NOT created"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-        if: success() || steps.buildstep.outcome == 'success'
         with:
-          name: ShieldApk
+          name: ShieldV2_BaseApk
           path: app/build/outputs/apk/debug/app-debug.apk
