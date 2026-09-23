@@ -23,14 +23,16 @@ jobs:
           set +e
           mkdir -p app/src/main/assets
           cd app/src/main/assets
-          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+          wget --connect-timeout=15 --tries=2 --no-check-certificate -O pose_landmarker_lite.task "https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
           wget --connect-timeout=15 --tries=2 --no-check-certificate -O gender_classifier.tflite "https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v2_1.0_224_quant.tflite"
           ls -la
           cd -
 
-      - name: Make sure gradlew exists & executable（⚠️不再自动运行 gradle wrapper！！）
+      - name: Generate gradle wrapper (force 8.7, avoid gradle9)
         run: |
           cd app
+          # 使用系统gradle生成wrapper，严格锁定8.7
+          gradle wrapper --gradle-version 8.7
           chmod +x gradlew
           ./gradlew --version
 
